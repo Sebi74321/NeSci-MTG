@@ -316,7 +316,7 @@ def scrape_all_pages(commander_name, driver):
 
 def main():
     main_url = 'https://edhrec.com/commanders/ghyrson-starn-kelermorph'
-    output_csv = 'decklists_ghyrson_starn_kelemorph.csv'
+    output_csv = 'decklists_ghyrson.csv'
     commander_name = 'Ghyrson Starn, Kelermorph'
 
     # Initialize Selenium WebDriver (Headless)
