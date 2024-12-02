@@ -58,11 +58,24 @@ def get_random_subgraph(G, n):
 
     return subgraph
 
+# Map each card to its Tag from the original dataframe
+def map_cards_to_tags(df):
+    card_to_tag = {}
+    for _, row in df.iterrows():
+        tag = row["Tag"]
+        cards = [card for card in row[5:] if pd.notna(card)]  # Cards are from Card 1 to Card 100
+        for card in cards:
+            if card not in card_to_tag:
+                card_to_tag[card] = []
+            card_to_tag[card].append(tag)
+    return card_to_tag
+
+
 
 # Community detection with Louvain method
-def community_detection_louvain(G):
+def community_detection_louvain(G, resolution=1.4):
     # Apply Louvain community detection
-    partition = louvain.best_partition(G, resolution=1.2)
+    partition = louvain.best_partition(G, resolution=resolution)
 
     # Count the number of communities detected
     num_communities = len(set(partition.values()))
@@ -142,9 +155,12 @@ def visualize_network(G, num_nodes=100):
     nx.write_gexf(G, 'card_cooccurrence_network_100.gexf')
 
 
-def main(csv_file, output_dir, n_random_decks=100, n_random_cards=100):
+def main(csv_file, output_dir, n_random_decks=100, n_random_cards=100, resolution=1.4):
     # Load the data
     df = load_data(csv_file)
+
+    # Generate the card-to-tag mapping
+    card_to_tag = map_cards_to_tags(df)
 
     # Generate co-occurrence data with a progress bar for a random subset of decks
     cooccurrence = generate_cooccurrence_matrix(df, n_random_decks)
@@ -159,16 +175,19 @@ def main(csv_file, output_dir, n_random_decks=100, n_random_cards=100):
     analyze_network(G)
 
     # Community detection with Louvain method
-    partition, communities = community_detection_louvain(G)
+    partition, communities = community_detection_louvain(G, resolution=resolution)
 
-    # Optionally save communities to a CSV file
-    community_df = pd.DataFrame([
-        {"Community": community, "Card": card}
-        for community, cards in communities.items()
-        for card in cards
-    ])
-    community_df.to_csv(f"{output_dir}/communities.csv", index=False)
-    print(f"Communities saved to {output_dir}/communities.csv")
+    # Create a DataFrame for communities and include the Tag values
+    community_data = []
+    for community, cards in communities.items():
+        for card in cards:
+            # Get the tags for the card (join them in case there are multiple tags)
+            tags = ", ".join(set(card_to_tag.get(card, [])))
+            community_data.append({"Community": community, "Card": card, "Tags": tags})
+
+    community_df = pd.DataFrame(community_data)
+    community_df.to_csv(f"{output_dir}/communities_with_tags.csv", index=False)
+    print(f"Communities with tags saved to {output_dir}/communities_with_tags.csv")
 
     # Visualize the network (Optional)
     visualize_network(G, num_nodes=100)
