@@ -5,7 +5,7 @@ import numpy as np
 from itertools import combinations
 from tqdm import tqdm  # Import tqdm for the progress bar
 import random
-import community as louvain  # Import the Louvain community detection package
+import community.community_louvain as louvain  # Import the Louvain community detection package
 
 
 # Load the CSV into a pandas DataFrame
@@ -60,25 +60,29 @@ def get_random_subgraph(G, n):
 
 
 # Community detection with Louvain method
-def community_detection_louvain(G, n):
-    # Create a subgraph with n random cards
-    # subgraph = get_random_subgraph(G, n)
-
+def community_detection_louvain(G):
     # Apply Louvain community detection
-    partition = louvain.best_partition(G)
+    partition = louvain.best_partition(G, resolution=1.2)
 
     # Count the number of communities detected
     num_communities = len(set(partition.values()))
-
     print(f"Number of communities found: {num_communities}")
 
-    # Show the size of each community
-    community_sizes = {i: list(partition.values()).count(i) for i in set(partition.values())}
-    print(f"Sizes of top 5 communities:")
-    for community, size in sorted(community_sizes.items(), key=lambda item: item[1], reverse=True)[:5]:
-        print(f"Community {community}: Size {size}")
+    # Group cards by community
+    communities = {}
+    for card, community in partition.items():
+        if community not in communities:
+            communities[community] = []
+        communities[community].append(card)
 
-    return partition
+    # Show the size of each community and the cards within them
+    print("Top 5 largest communities:")
+    for community, cards in sorted(communities.items(), key=lambda x: len(x[1]), reverse=True)[:5]:
+        print(f"Community {community}: {len(cards)} cards")
+        print(f"Cards: {', '.join(cards[:10])}...")  # Show only the first 10 cards for brevity
+
+    return partition, communities
+
 
 
 # Export data to Gephi-compatible CSV files (nodes and edges)
@@ -138,7 +142,6 @@ def visualize_network(G, num_nodes=100):
     nx.write_gexf(G, 'card_cooccurrence_network_100.gexf')
 
 
-# Main function
 def main(csv_file, output_dir, n_random_decks=100, n_random_cards=100):
     # Load the data
     df = load_data(csv_file)
@@ -156,16 +159,26 @@ def main(csv_file, output_dir, n_random_decks=100, n_random_cards=100):
     analyze_network(G)
 
     # Community detection with Louvain method
-    community_partition = community_detection_louvain(G, n_random_cards)
+    partition, communities = community_detection_louvain(G)
+
+    # Optionally save communities to a CSV file
+    community_df = pd.DataFrame([
+        {"Community": community, "Card": card}
+        for community, cards in communities.items()
+        for card in cards
+    ])
+    community_df.to_csv(f"{output_dir}/communities.csv", index=False)
+    print(f"Communities saved to {output_dir}/communities.csv")
 
     # Visualize the network (Optional)
     visualize_network(G, num_nodes=100)
 
 
+
 # Run the main function
 if __name__ == "__main__":
-    csv_file = 'decklists/decklists_firkraag.csv'  # Replace with the path to your CSV file
-    output_dir = 'gephi_output'  # Directory to save Gephi files
+    csv_file = '../data/decklists_firkraag.csv'  # Replace with the path to your CSV file
+    output_dir = 'ana_output'  # Directory to save Gephi files
     n_random_decks = 10  # Number of random decks to sample
     n_random_cards = 100  # Set the number of random cards to consider for community detection
     main(csv_file, output_dir, n_random_decks, n_random_cards)
