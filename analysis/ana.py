@@ -9,37 +9,36 @@ import community.community_louvain as louvain  # Import the Louvain community de
 
 
 # Load the CSV into a pandas DataFrame
-def load_data(csv_file):
-    df = pd.read_csv(csv_file)
-    return df
+def load_data(csv_files):
+    dfs = [pd.read_csv(csv_file) for csv_file in csv_files]
+    return pd.concat(dfs, ignore_index=True)
 
 
 # Generate the co-occurrence matrix for a random subset of decks
 def generate_cooccurrence_matrix(df, n_random_decks):
-    # Sample n_random_decks decks randomly
-    sampled_decks = df.sample(n=n_random_decks, random_state=42)  # Adjust random_state for reproducibility
-
+    sampled_decks = df.sample(n=n_random_decks, random_state=42)
     cooccurrence = {}
     card_counts = {}
 
-    # Use tqdm to add a progress bar while iterating through the sampled decks
     for _, row in tqdm(sampled_decks.iterrows(), total=sampled_decks.shape[0], desc="Processing Sampled Decks", unit="deck"):
-        cards = [card for card in row[5:] if pd.notna(card)]  # Cards are from Card 1 to Card 100
-        # Count the occurrences of each card
+        cards = [card for card in row[5:] if pd.notna(card)]
         for card in cards:
             if card in card_counts:
                 card_counts[card] += 1
             else:
                 card_counts[card] = 1
-        # Get all unique pairs of cards that appear together in this deck
         for card1, card2 in combinations(cards, 2):
-            if card1 != card2:  # Ignore self-loops
-                pair = tuple(sorted([card1, card2]))  # Sort to avoid (card1, card2) and (card2, card1) being different edges
+            if card1 != card2:
+                pair = tuple(sorted([card1, card2]))
                 if pair in cooccurrence:
                     cooccurrence[pair] += 1
                 else:
                     cooccurrence[pair] = 1
-    return cooccurrence, card_counts
+
+    filtered_card_counts = {card: count for card, count in card_counts.items() if count >= 3}
+    filtered_cooccurrence = {pair: weight for pair, weight in cooccurrence.items() if pair[0] in filtered_card_counts and pair[1] in filtered_card_counts}
+
+    return filtered_cooccurrence, filtered_card_counts
 
 
 
@@ -47,7 +46,8 @@ def generate_cooccurrence_matrix(df, n_random_decks):
 def build_graph(cooccurrence):
     G = nx.Graph()
     for (card1, card2), weight in cooccurrence.items():
-        G.add_edge(card1, card2, weight=weight)
+        if weight > 3:
+            G.add_edge(card1, card2, weight=weight)
     return G
 
 
@@ -75,7 +75,6 @@ def map_cards_to_tags(df):
                 card_to_tag[card] = []
             card_to_tag[card].append(tag)
     return card_to_tag
-
 
 
 # Community detection with Louvain method
@@ -112,18 +111,15 @@ def export_to_gephi(G, card_counts, output_dir):
     nodes['Count'] = nodes['Id'].map(card_counts)  # Add the count of each card
 
     # Save to nodes.csv
-    nodes.to_csv(f'{output_dir}/nodes.csv', index=False)
+    nodes.to_csv(f'{output_dir}/nodes_1000shared.csv', index=False)
 
     # Export edges (pairs of cards) to a CSV file
     edges = pd.DataFrame(G.edges(data=True), columns=['Source', 'Target', 'Weight'])
 
     # Save to edges.csv
-    edges.to_csv(f'{output_dir}/edges.csv', index=False)
+    edges.to_csv(f'{output_dir}/edges_1000shared.csv', index=False)
 
-    nx.write_gexf(G, output_dir + '/card_cooccurrence_network.gexf')
-
-    print(f"Gephi files saved to {output_dir}/nodes.csv and {output_dir}/edges.csv")
-
+    nx.write_gexf(G, output_dir + '/card_cooccurrence_network_1000shared.gexf')
 
 
 # Analysis: Basic insights
@@ -148,7 +144,6 @@ def analyze_network(G):
     for card, centrality in sorted(betweenness_centrality.items(), key=lambda x: x[1], reverse=True)[:5]:
         print(f"{card}: {centrality}")
 
-
 # Visualize the network
 def visualize_network(G, num_nodes=100):
     plt.figure(figsize=(12, 12))
@@ -164,16 +159,15 @@ def visualize_network(G, num_nodes=100):
     # Export gefx file
     nx.write_gexf(G, 'card_cooccurrence_network_100.gexf')
 
-
-def main(csv_file, output_dir, n_random_decks=100, n_random_cards=100, resolution=1.4):
-    # Load the data
-    df = load_data(csv_file)
+def main(csv_files, output_dir, n_random_decks_per_file=1000, n_random_cards=100, resolution=1.4):
+    # Load the data from multiple CSV files
+    df = load_data(csv_files)
 
     # Generate the card-to-tag mapping
     card_to_tag = map_cards_to_tags(df)
 
     # Generate co-occurrence data with a progress bar for a random subset of decks
-    cooccurrence, card_counts = generate_cooccurrence_matrix(df, n_random_decks)
+    cooccurrence, card_counts = generate_cooccurrence_matrix(df, n_random_decks_per_file * len(csv_files))
 
     # Build the graph
     G = build_graph(cooccurrence)
@@ -203,11 +197,10 @@ def main(csv_file, output_dir, n_random_decks=100, n_random_cards=100, resolutio
     visualize_network(G, num_nodes=100)
 
 
-
 # Run the main function
 if __name__ == "__main__":
-    csv_file = '../data/decklists_firkraag.csv'  # Replace with the path to your CSV file
+    csv_files = ['../data/decklists_firkraag.csv', '../data/decklists_ghyrson.csv','../data/decklists_aegar.csv','../data/decklists_bria.csv','../data/decklists_jhoiraWC.csv','../data/decklists_neera.csv','../data/decklists_river_song.csv','../data/decklists_veyran.csv','../data/decklists_yusri.csv']  # Replace with the paths to your CSV files
     output_dir = 'ana_output'  # Directory to save Gephi files
-    n_random_decks = 10  # Number of random decks to sample
+    n_random_decks = 1000 # Number of random decks to sample
     n_random_cards = 100  # Set the number of random cards to consider for community detection
-    main(csv_file, output_dir, n_random_decks, n_random_cards)
+    main(csv_files, output_dir, n_random_decks, n_random_cards)
