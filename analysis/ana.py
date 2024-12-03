@@ -187,7 +187,7 @@ def main(csv_files, output_dir, n_random_decks_per_file=1000, n_random_cards=100
         for card in cards:
             # Get the tags for the card (join them in case there are multiple tags)
             tags = ", ".join(set(card_to_tag.get(card, [])))
-            community_data.append({"Community": community, "Card": card, "Tags": tags})
+            community_data.append({"Community": community, "Id": card, "Tags": tags})
 
     community_df = pd.DataFrame(community_data)
     community_df.to_csv(f"{output_dir}/communities_with_tags.csv", index=False)
