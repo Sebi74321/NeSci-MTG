@@ -17,13 +17,15 @@ def filter_decks_by_date(df, start_date, end_date):
     df['Date'] = pd.to_datetime(df['Date'], errors='coerce')
     return df[(df['Date'] >= start_date) & (df['Date'] <= end_date)]
 
+def sample_decks(df, n_decks):
+    return df.sample(n=n_decks, random_state=42)
+
 # Generate the co-occurrence matrix for a random subset of decks
-def generate_cooccurrence_matrix(df, n_random_decks):
-    sampled_decks = df.sample(n=n_random_decks, random_state=42)
+def generate_cooccurrence_matrix(df):
     cooccurrence = {}
     card_counts = {}
 
-    for _, row in tqdm(sampled_decks.iterrows(), total=sampled_decks.shape[0], desc="Processing Sampled Decks", unit="deck"):
+    for _, row in tqdm(df.iterrows(), total=df.shape[0], desc="Processing Decks", unit="deck"):
         cards = [card for card in row[5:] if pd.notna(card)]
         for card in cards:
             if card in card_counts:
@@ -162,15 +164,38 @@ def visualize_network(G, num_nodes=100):
     # Export gefx file
     nx.write_gexf(G, 'card_cooccurrence_firkraag_network_100.gexf')
 
+def main_by_time(n_random_decks_per_file, csv_files, start_date, end_date, output_dir, resolution=1.4):
+    df = load_data(csv_files)
+    df_filtered = filter_decks_by_date(df, start_date, end_date)
+    sampled_decks = sample_decks(df_filtered, n_random_decks_per_file * len(csv_files))
+    cooccurrence, card_counts = generate_cooccurrence_matrix(sampled_decks)
+    G = build_graph(cooccurrence)
+    export_to_gephi(G, card_counts, output_dir)
+    analyze_network(G)
+    partition, communities = community_detection_louvain(G, resolution=resolution)
+
+    card_to_tag = map_cards_to_tags(df_filtered)
+    community_data = []
+    for community, cards in communities.items():
+        for card in cards:
+            tags = ", ".join(set(card_to_tag.get(card, [])))
+            community_data.append({"Community": community, "Id": card, "Tags": tags})
+
+    community_df = pd.DataFrame(community_data)
+    community_df.to_csv(f"{output_dir}/time_filtered_communities_with_tags.csv", index=False)
+    print(f"Communities with tags saved to {output_dir}/time_filtered_communities_with_tags.csv")
+
+    visualize_network(G, num_nodes=100)
+
 def main(csv_files, output_dir, n_random_decks_per_file=1000, n_random_cards=100, resolution=1.4):
     # Load the data from multiple CSV files
     df = load_data(csv_files)
 
     # Generate the card-to-tag mapping
     card_to_tag = map_cards_to_tags(df)
-
+    sampled_decks = sample_decks(df, n_random_decks_per_file * len(csv_files))
     # Generate co-occurrence data with a progress bar for a random subset of decks
-    cooccurrence, card_counts = generate_cooccurrence_matrix(df, n_random_decks_per_file * len(csv_files))
+    cooccurrence, card_counts = generate_cooccurrence_matrix(sampled_decks)
 
     # Build the graph
     G = build_graph(cooccurrence)
@@ -204,6 +229,8 @@ def main(csv_files, output_dir, n_random_decks_per_file=1000, n_random_cards=100
 if __name__ == "__main__":
     csv_files = ['../data/decklists_firkraag.csv']  # Replace with the paths to your CSV files
     output_dir = 'ana_output'  # Directory to save Gephi files
+    start_date = '2022-01-01'
+    end_date = '2023-01-01'
     n_random_decks = 3132 # Number of random decks to sample
     n_random_cards = 100  # Set the number of random cards to consider for community detection
-    main(csv_files, output_dir, n_random_decks, n_random_cards)
+    main_by_time(n_random_decks, csv_files, start_date, end_date, output_dir)
