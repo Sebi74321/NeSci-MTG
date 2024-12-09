@@ -13,6 +13,9 @@ def load_data(csv_files):
     dfs = [pd.read_csv(csv_file) for csv_file in csv_files]
     return pd.concat(dfs, ignore_index=True)
 
+def filter_decks_by_date(df, start_date, end_date):
+    df['Date'] = pd.to_datetime(df['Date'], errors='coerce')
+    return df[(df['Date'] >= start_date) & (df['Date'] <= end_date)]
 
 # Generate the co-occurrence matrix for a random subset of decks
 def generate_cooccurrence_matrix(df, n_random_decks):
@@ -111,7 +114,7 @@ def export_to_gephi(G, card_counts, output_dir):
     nodes['Count'] = nodes['Id'].map(card_counts)  # Add the count of each card
 
     # Save to nodes.csv
-    nodes.to_csv(f'{output_dir}/nodes_1000shared.csv', index=False)
+    nodes.to_csv(f'{output_dir}/nodes_1000Firkraag.csv', index=False)
 
     # Export edges (pairs of cards) to a CSV file
     edges = pd.DataFrame(G.edges(data=True), columns=['Source', 'Target', 'Weight'])
@@ -119,7 +122,7 @@ def export_to_gephi(G, card_counts, output_dir):
     # Save to edges.csv
     edges.to_csv(f'{output_dir}/edges_1000shared.csv', index=False)
 
-    nx.write_gexf(G, output_dir + '/card_cooccurrence_network_1000shared.gexf')
+    nx.write_gexf(G, output_dir + '/card_cooccurrence_network_1000Firkraag.gexf')
 
 
 # Analysis: Basic insights
@@ -157,7 +160,7 @@ def visualize_network(G, num_nodes=100):
     nx.draw(subgraph, pos, with_labels=True, node_size=30, font_size=8, alpha=0.7, edge_color="gray")
     plt.show()
     # Export gefx file
-    nx.write_gexf(G, 'card_cooccurrence_network_100.gexf')
+    nx.write_gexf(G, 'card_cooccurrence_firkraag_network_100.gexf')
 
 def main(csv_files, output_dir, n_random_decks_per_file=1000, n_random_cards=100, resolution=1.4):
     # Load the data from multiple CSV files
@@ -190,8 +193,8 @@ def main(csv_files, output_dir, n_random_decks_per_file=1000, n_random_cards=100
             community_data.append({"Community": community, "Id": card, "Tags": tags})
 
     community_df = pd.DataFrame(community_data)
-    community_df.to_csv(f"{output_dir}/communities_with_tags.csv", index=False)
-    print(f"Communities with tags saved to {output_dir}/communities_with_tags.csv")
+    community_df.to_csv(f"{output_dir}/firkraag_communities_with_tags.csv", index=False)
+    print(f"Communities with tags saved to {output_dir}/firkraag_communities_with_tags.csv")
 
     # Visualize the network (Optional)
     visualize_network(G, num_nodes=100)
@@ -199,8 +202,8 @@ def main(csv_files, output_dir, n_random_decks_per_file=1000, n_random_cards=100
 
 # Run the main function
 if __name__ == "__main__":
-    csv_files = ['../data/decklists_firkraag.csv', '../data/decklists_ghyrson.csv','../data/decklists_aegar.csv','../data/decklists_bria.csv','../data/decklists_jhoiraWC.csv','../data/decklists_neera.csv','../data/decklists_river_song.csv','../data/decklists_veyran.csv','../data/decklists_yusri.csv']  # Replace with the paths to your CSV files
+    csv_files = ['../data/decklists_firkraag.csv']  # Replace with the paths to your CSV files
     output_dir = 'ana_output'  # Directory to save Gephi files
-    n_random_decks = 1000 # Number of random decks to sample
+    n_random_decks = 3132 # Number of random decks to sample
     n_random_cards = 100  # Set the number of random cards to consider for community detection
     main(csv_files, output_dir, n_random_decks, n_random_cards)
